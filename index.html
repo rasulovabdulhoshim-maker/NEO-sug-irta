@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Montaj</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #14171f; --mute: #667085; --line: #e3e6ec;
+    --brand: #4f46e5; --brand-ink: #ffffff; --ok: #12805c; --err: #c0362c; --chip: #eef0ff;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1116; --card:#181b23; --ink:#eef0f5; --mute:#98a1b3; --line:#2a2f3b;
+            --brand:#7c76f5; --brand-ink:#0f1116; --chip:#22254a; --ok:#4cc79a; --err:#ff7b6f;
+            --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35); }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 20px; display:flex; align-items:center; gap:10px; max-width:1200px; margin:0 auto; }
+  header h1 { font-size:18px; margin:0; letter-spacing:-.01em; }
+  header .dot { width:10px; height:10px; border-radius:50%; background:var(--brand); }
+  header .sp { flex:1; }
+  main { max-width:1200px; margin:0 auto; padding: 0 20px 40px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .pad { padding:18px; }
+  h2 { font-size:15px; margin:0 0 12px; }
+  .mute { color:var(--mute); font-size:13px; }
+  button { font:inherit; cursor:pointer; border-radius:10px; border:1px solid var(--line);
+           background:var(--card); color:var(--ink); padding:9px 14px; }
+  button:hover { border-color: var(--brand); }
+  button.primary { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); font-weight:600; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  input[type=text], select, textarea { font:inherit; color:var(--ink); background:var(--bg);
+           border:1px solid var(--line); border-radius:10px; padding:9px 12px; width:100%; }
+  a.btn { text-decoration:none; display:inline-block; }
+
+  /* yuklash */
+  #drop { border:2px dashed var(--line); border-radius:16px; padding:60px 20px; text-align:center;
+          transition:.15s; background:var(--card); }
+  #drop.over { border-color:var(--brand); background:var(--chip); }
+  #drop h2 { font-size:20px; margin-bottom:6px; }
+  #upbar { height:8px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:18px; display:none; }
+  #upbar > i { display:block; height:100%; width:0; background:var(--brand); transition:width .2s; }
+
+  /* loyiha */
+  #work { display:none; grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); gap:18px; align-items:start; }
+  @media (max-width: 900px) { #work { grid-template-columns: 1fr; } }
+  video { width:100%; max-height:62vh; background:#000; border-radius:12px; display:block; }
+  .vers { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  .ver { padding:6px 12px; border-radius:99px; font-size:13px; }
+  .ver.on { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  .notes { margin:0; padding-left:18px; color:var(--mute); font-size:13px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+  .opts label { display:flex; gap:10px; align-items:center; padding:7px 0; cursor:pointer; }
+  .opts input[type=checkbox] { width:18px; height:18px; accent-color: var(--brand); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:10px 0; }
+  .fileline { display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 0; }
+  .fileline .ok { color:var(--ok); }
+  hr { border:0; border-top:1px solid var(--line); margin:16px 0; }
+
+  #chat { height:260px; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:4px 2px 10px; }
+  .msg { padding:9px 12px; border-radius:12px; max-width:92%; white-space:pre-wrap; font-size:14px; }
+  .msg.user { align-self:flex-end; background:var(--brand); color:var(--brand-ink); }
+  .msg.assistant { align-self:flex-start; background:var(--bg); border:1px solid var(--line); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  .chip { background:var(--chip); border:0; border-radius:99px; font-size:12.5px; padding:5px 10px; }
+  #status { display:none; margin-bottom:14px; padding:12px 16px; }
+  #status.err { border-color:var(--err); color:var(--err); }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line);
+          border-top-color:var(--brand); border-radius:50%; animation: sp 0.8s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot"></span><h1>AI Video Montaj</h1><span class="sp"></span>
+  <button id="newBtn" style="display:none">Yangi video</button>
+</header>
+
+<main>
+  <div id="status" class="card"></div>
+
+  <section id="upload">
+    <div id="drop">
+      <h2>Videoni shu yerga tashlang</h2>
+      <p class="mute">yoki tanlash uchun bosing &middot; mp4, mov, mkv, webm</p>
+      <button class="primary" id="pick">Video tanlash</button>
+      <input id="file" type="file" accept="video/*" hidden>
+      <div id="upbar"><i></i></div>
+    </div>
+  </section>
+
+  <section id="work">
+    <div class="card pad">
+      <video id="player" controls playsinline></video>
+      <div class="vers" id="vers"></div>
+      <ul class="notes" id="notes"></ul>
+      <div class="row" style="margin-top:12px">
+        <a class="btn" id="dl"><button class="primary" type="button">⬇ Yuklab olish</button></a>
+        <span class="mute" id="vinfo"></span>
+      </div>
+      <p class="mute" style="margin-bottom:0">Yangi tahrirlar hozir tanlangan versiyaga qo'llanadi.</p>
+    </div>
+
+    <div>
+      <div class="card pad" style="margin-bottom:18px">
+        <h2>1. Avto montaj</h2>
+        <div class="opts">
+          <label><input type="checkbox" id="o_silence" checked> Jim joylarni olib tashlash</label>
+          <label><input type="checkbox" id="o_normalize" checked> Ovozni tekislash va shovqinni kamaytirish</label>
+          <label><input type="checkbox" id="o_subtitles" checked> Avtomatik subtitr</label>
+          <label><input type="checkbox" id="o_fade" checked> Boshi va oxiriga silliq so'nish</label>
+          <label><input type="checkbox" id="o_music"> Fon musiqasi <span class="mute">(o'z faylingiz)</span></label>
+          <label><input type="checkbox" id="o_logo"> Logo <span class="mute">(o'z rasmingiz)</span></label>
+        </div>
+        <div class="grid2">
+          <div>
+            <div class="mute">Nutq tili (subtitr uchun)</div>
+            <select id="o_lang">
+              <option value="">Avtomatik aniqlash</option>
+              <option value="uz">O'zbekcha</option>
+              <option value="ru">Ruscha</option>
+              <option value="en">Inglizcha</option>
+              <option value="tr">Turkcha</option>
+            </select>
+          </div>
+          <div>
+            <div class="mute">Format</div>
+            <select id="o_aspect">
+              <option value="">O'zgarishsiz</option>
+              <option value="9:16">Vertikal 9:16 (Reels/Shorts)</option>
+              <option value="1:1">Kvadrat 1:1</option>
+              <option value="4:5">4:5</option>
+              <option value="16:9">Gorizontal 16:9</option>
+            </select>
+          </div>
+        </div>
+        <div class="fileline"><span>Logo:</span><span id="logoState" class="mute">yuklanmagan</span>
+          <button id="logoBtn" style="padding:4px 10px">Yuklash</button><input id="logoFile" type="file" accept="image/*" hidden></div>
+        <div class="fileline"><span>Musiqa:</span><span id="musicState" class="mute">yuklanmagan</span>
+          <button id="musicBtn" style="padding:4px 10px">Yuklash</button><input id="musicFile" type="file" accept="audio/*" hidden></div>
+        <div style="margin-top:12px"><button class="primary" id="autoBtn" style="width:100%">Avto montajni boshlash</button></div>
+      </div>
+
+      <div class="card pad">
+        <h2>2. AI bilan gaplashib tahrirlash</h2>
+        <div id="chat"></div>
+        <div class="chips" id="chips"></div>
+        <div class="row" style="flex-wrap:nowrap">
+          <input type="text" id="msg" placeholder="Masalan: boshidan 5 soniyani kes va tepaga sarlavha qo'y">
+          <button class="primary" id="send">Yuborish</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let proj = null, cur = 0, timer = null;
+const store = {
+  get() { try { return localStorage.getItem('pid'); } catch (e) { return null; } },
+  set(v) { try { v ? localStorage.setItem('pid', v) : localStorage.removeItem('pid'); } catch (e) {} },
+};
+
+const EXAMPLES = [
+  "Boshidagi 3 soniyani kes",
+  "Tepaga «Yangi mahsulot» deb sarlavha qo'y",
+  "Videoni 1.25 barobar tezlashtir",
+  "Oq-qora qil",
+  "Subtitrni sariq rangda qil",
+  "Vertikal 9:16 formatga o'tkaz",
+];
+
+function showStatus(html, err) {
+  const s = $('status'); s.className = 'card' + (err ? ' err' : ''); s.innerHTML = html;
+  s.style.display = html ? 'block' : 'none';
+}
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let data = null; try { data = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((data && data.detail) || ('Xato: ' + r.status));
+  return data;
+}
+
+// ---- yuklash ----
+function uploadVideo(file) {
+  if (!file) return;
+  const bar = $('upbar'); bar.style.display = 'block';
+  const fd = new FormData(); fd.append('file', file);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/projects');
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) bar.firstChild.style.width = (e.loaded / e.total * 100) + '%'; };
+  xhr.onload = () => {
+    bar.style.display = 'none'; bar.firstChild.style.width = '0';
+    let d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+    if (xhr.status >= 300) return showStatus(esc(d.detail || 'Yuklashda xato'), true);
+    showStatus('');
+    setProject(d, true);
+  };
+  xhr.onerror = () => { bar.style.display = 'none'; showStatus('Tarmoq xatosi. Qayta urinib ko\'ring.', true); };
+  xhr.send(fd);
+}
+
+const drop = $('drop');
+$('pick').onclick = () => $('file').click();
+$('file').onchange = (e) => uploadVideo(e.target.files[0]);
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => uploadVideo(e.dataTransfer.files[0]));
+
+// ---- loyiha holati ----
+function setProject(p, jumpLast) {
+  const prevCount = proj ? proj.versions.length : 0;
+  proj = p; store.set(p.id);
+  $('upload').style.display = 'none';
+  $('work').style.display = 'grid';
+  $('newBtn').style.display = '';
+  if (jumpLast || p.versions.length > prevCount) cur = p.versions[p.versions.length - 1].n;
+  render();
+  const busy = p.status === 'queued' || p.status === 'processing';
+  if (busy && !timer) timer = setInterval(poll, 1500);
+  if (!busy && timer) { clearInterval(timer); timer = null; }
+}
+
+async function poll() {
+  try { setProject(await api('/api/projects/' + proj.id)); }
+  catch (e) { clearInterval(timer); timer = null; showStatus(esc(e.message), true); }
+}
+
+function render() {
+  const p = proj, busy = p.status === 'queued' || p.status === 'processing';
+  // holat paneli
+  if (busy) {
+    const g = p.progress || {};
+    const step = g.total ? ` (${g.step}/${g.total})` : '';
+    showStatus(`<span class="spin"></span>Montaj qilinmoqda${step}… Videoning uzunligiga qarab bir necha daqiqa ketishi mumkin.`);
+  } else if (p.status === 'error') {
+    showStatus(esc(p.error || 'Xato yuz berdi'), true);
+  } else showStatus('');
+
+  // versiyalar
+  const vers = $('vers'); vers.innerHTML = '';
+  p.versions.forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'ver' + (v.n === cur ? ' on' : '');
+    b.textContent = v.n === 0 ? 'Asl video' : 'Versiya ' + v.n;
+    b.title = v.label;
+    b.onclick = () => { cur = v.n; render(); };
+    vers.appendChild(b);
+  });
+  const v = p.versions.find(x => x.n === cur) || p.versions[0];
+  const url = `/api/projects/${p.id}/versions/${v.n}/video`;
+  const player = $('player');
+  if (player.dataset.src !== url) {
+    player.dataset.src = url; player.src = url;
+  }
+  $('dl').href = url + '?download=1';
+  $('vinfo').textContent = `${v.label} · ${v.duration} s`;
+  $('notes').innerHTML = (v.notes || []).map(n => '<li>' + esc(n) + '</li>').join('');
+
+  // fayllar
+  $('logoState').textContent = p.has_logo ? '✓ yuklangan' : 'yuklanmagan';
+  $('musicState').textContent = p.has_music ? '✓ yuklangan' : 'yuklanmagan';
+  $('logoState').className = p.has_logo ? 'ok' : 'mute';
+  $('musicState').className = p.has_music ? 'ok' : 'mute';
+
+  // chat
+  const chat = $('chat'); chat.innerHTML = '';
+  if (!p.history.length) {
+    const m = document.createElement('div'); m.className = 'msg assistant';
+    m.textContent = 'Salom! Videoda nimani o\'zgartirish kerakligini oddiy tilda yozing, men bajaraman.';
+    chat.appendChild(m);
+  }
+  p.history.forEach(h => {
+    const m = document.createElement('div'); m.className = 'msg ' + h.role; m.textContent = h.content; chat.appendChild(m);
+  });
+  chat.scrollTop = chat.scrollHeight;
+  ['autoBtn', 'send', 'msg'].forEach(id => $(id).disabled = busy);
+}
+
+// ---- amallar ----
+async function post(path, body) {
+  try {
+    const p = await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    setProject(p);
+  } catch (e) { showStatus(esc(e.message), true); }
+}
+
+$('autoBtn').onclick = () => post(`/api/projects/${proj.id}/auto`, {
+  silence: $('o_silence').checked, normalize: $('o_normalize').checked,
+  subtitles: $('o_subtitles').checked, fade: $('o_fade').checked,
+  music: $('o_music').checked, logo: $('o_logo').checked,
+  language: $('o_lang').value || null, aspect: $('o_aspect').value || null, base: cur,
+});
+
+function sendMsg() {
+  const t = $('msg').value.trim(); if (!t) return;
+  $('msg').value = '';
+  proj.history.push({ role: 'user', content: t }); render();
+  post(`/api/projects/${proj.id}/chat`, { message: t, base: cur });
+}
+$('send').onclick = sendMsg;
+$('msg').addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+$('chips').innerHTML = '';
+EXAMPLES.forEach(t => {
+  const b = document.createElement('button'); b.className = 'chip'; b.textContent = t;
+  b.onclick = () => { $('msg').value = t; $('msg').focus(); };
+  $('chips').appendChild(b);
+});
+
+async function uploadAsset(kind, file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append('kind', kind); fd.append('file', file);
+  try { setProject(await api(`/api/projects/${proj.id}/assets`, { method: 'POST', body: fd })); showStatus(''); }
+  catch (e) { showStatus(esc(e.message), true); }
+}
+$('logoBtn').onclick = () => $('logoFile').click();
+$('musicBtn').onclick = () => $('musicFile').click();
+$('logoFile').onchange = e => { uploadAsset('logo', e.target.files[0]); $('o_logo').checked = true; };
+$('musicFile').onchange = e => { uploadAsset('music', e.target.files[0]); $('o_music').checked = true; };
+
+$('newBtn').onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; }
+  store.set(null); proj = null; cur = 0;
+  $('work').style.display = 'none'; $('upload').style.display = ''; $('newBtn').style.display = 'none';
+  $('player').removeAttribute('src'); $('player').dataset.src = ''; showStatus('');
+};
+
+// sahifa qayta ochilganda oxirgi loyihani tiklaymiz
+(async () => {
+  const id = store.get(); if (!id) return;
+  try { setProject(await api('/api/projects/' + id), true); } catch (e) { store.set(null); }
+})();
+</script>
+</body>
+</html>
